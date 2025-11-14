@@ -206,7 +206,8 @@ pub trait AsValue: std::fmt::Debug + Any + Send  + Sync + 'static {
         None
     }
 
-    fn as_any(&self) -> Arc<dyn Any + Send + Sync>;
+    fn as_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
+    // fn as_any(&self) -> Arc<dyn Any + Send + Sync>;
     // fn as_any(&self) -> Arc<dyn Any + Send + Sync> {
     //     self
     // }

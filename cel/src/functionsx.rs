@@ -24,7 +24,7 @@ pub mod ip {
             Some(Value::String(self.0.to_string().into()))
         }
 
-        fn as_any(self: Arc<>) -> Arc<dyn Any + Send + Sync> {
+        fn as_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
             self
         }
     }
