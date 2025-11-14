@@ -172,6 +172,98 @@ impl<K: Into<Key>, V: Into<Value>> From<HashMap<K, V>> for Map {
     }
 }
 
+/// Implement conversions from [`Key`] into [`Value`]
+impl<'a> TryInto<BorrowKey<'a>> for &'a Value {
+    type Error = &'a Value;
+
+    #[inline(always)]
+    fn try_into(self) -> Result<BorrowKey<'a>, Self::Error> {
+        match self {
+            Value::Int(v) => Ok(BorrowKey::Int(*v)),
+            Value::UInt(v) => Ok(BorrowKey::Uint(*v)),
+            Value::Bool(v) => Ok(BorrowKey::Bool(*v)),
+            Value::String(v) => Ok(BorrowKey::String(v.as_str())),
+            _ => Err(self),
+        }
+    }
+}
+#[derive(Debug, Eq, PartialEq, Hash, Ord, Clone, PartialOrd)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub enum BorrowKey<'a> {
+    Int(i64),
+    Uint(u64),
+    Bool(bool),
+    String(&'a str),
+}
+
+// impl<'a> std::borrow::Borrow<BorrowKey<'a>> for Key {
+//     #[inline]
+//     fn borrow(&self) -> &BorrowKey<'a> {
+//         let s = match self {
+//             _ => todo!(),
+//             // Self::Int(integer) => &BorrowKey::Int(*integer),
+//             // Self::Uint(integer) => &BorrowKey::Uint(*integer),
+//             // Self::Bool(b) => &BorrowKey::Bool(*b),
+//             Self::String(s) => s.as_str(),
+//         };
+//         let k = BorrowKey::String(s);
+//         &k
+//     }
+// }
+
+// The trait that both Key and KeyRef implement
+pub trait Lend {
+    fn lend(&self) -> BorrowKey<'_>;
+}
+
+impl Lend for Key {
+    fn lend(&self) -> BorrowKey<'_> {
+        match self {
+            Key::Int(i) => BorrowKey::Int(*i),
+            Key::Uint(u) => BorrowKey::Uint(*u),
+            Key::Bool(b) => BorrowKey::Bool(*b),
+            Key::String(s) => BorrowKey::String(s.as_str()),
+        }
+    }
+}
+
+impl Lend for BorrowKey<'_> {
+    fn lend(&self) -> BorrowKey<'_> {
+        match self {
+            BorrowKey::Int(i) => BorrowKey::Int(*i),
+            BorrowKey::Uint(u) => BorrowKey::Uint(*u),
+            BorrowKey::Bool(b) => BorrowKey::Bool(*b),
+            BorrowKey::String(s) => BorrowKey::String(s),
+        }
+    }
+}
+
+// Implement Borrow for Key using dyn Lend as the borrowed type
+impl<'a> std::borrow::Borrow<dyn Lend + 'a> for Key {
+    fn borrow(&self) -> &(dyn Lend + 'a) {
+        self
+    }
+}
+
+impl<'a, 'b: 'a> std::borrow::Borrow<dyn Lend + 'a> for BorrowKey<'b> {
+    fn borrow(&self) -> &(dyn Lend + 'a) {
+        self
+    }
+}
+impl std::cmp::PartialEq<dyn Lend + '_> for dyn Lend + '_ {
+    fn eq(&self, other: &(dyn Lend + '_)) -> bool {
+        self.lend() == other.lend()
+    }
+}
+
+impl std::cmp::Eq for dyn Lend + '_ {}
+
+impl std::hash::Hash for dyn Lend + '_ {
+    fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
+        self.lend().hash(hasher)
+    }
+}
+
 pub trait TryIntoValue {
     type Error: std::error::Error + 'static + Send + Sync;
     fn try_into_value(self) -> Result<Value, Self::Error>;
@@ -566,9 +658,12 @@ impl Value {
                                 (any, Value::List(v)) => {
                                     return Value::Bool(v.contains(&any)).into()
                                 }
-                                (any, Value::Map(m)) => match any.try_into() {
-                                    Ok(key) => return Value::Bool(m.map.contains_key(&key)).into(),
-                                    Err(_) => return Value::Bool(false).into(),
+                                (any, Value::Map(m)) => {
+                                    let k: Result<BorrowKey, _> = (&any).try_into();
+                                    match k {
+                                        Ok(key) => return Value::Bool(m.map.contains_key::<dyn Lend>(&key)).into(),
+                                        Err(_) => return Value::Bool(false).into(),
+                                    }
                                 },
                                 (left, right) => {
                                     Err(ExecutionError::ValuesNotComparable(left, right))?
