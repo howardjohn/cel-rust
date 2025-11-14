@@ -1,8 +1,8 @@
+use crate::objects::{AsValue, Opaque};
 use crate::{ExecutionError, FunctionContext, Value};
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::Arc;
-use crate::objects::{AsValue, Opaque};
 
 type Resultx = std::result::Result<Value, ExecutionError>;
 
@@ -42,11 +42,6 @@ pub mod ip {
     }
 
     pub fn is_localhost(ftx: &FunctionContext, s: This<Opaque>) -> Resultx {
-        let d: Arc<dyn AsValue + 'static> = s.0.data.clone();
-        let t =
-            d.as_any().clone()
-                .downcast::<IpAddr>()
-                .map_err(|_| ftx.error("inappropriate type"))?;
-        Ok(t.0.is_loopback().into())
+        Ok(s.0.downcast::<IpAddr>(ftx)?.0.is_loopback().into())
     }
 }

@@ -221,6 +221,12 @@ pub struct Opaque {
     pub data: Arc<dyn AsValue + Send + Sync + 'static>,
 }
 
+impl Opaque {
+    pub fn downcast<T: 'static + Send + Sync>(&self, ftx: &FunctionContext) -> Result<Arc<T>, ExecutionError> {
+        self.data.clone().as_any().downcast::<T>().map_err(|_| ftx.error("inappropriate type"))
+    }
+}
+
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for Opaque {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
