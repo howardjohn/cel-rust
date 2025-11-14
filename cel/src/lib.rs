@@ -31,8 +31,10 @@ mod ser;
 pub use ser::to_value;
 pub use ser::SerializationError;
 
+mod functionsx;
 #[cfg(feature = "json")]
 mod json;
+
 #[cfg(feature = "json")]
 pub use json::ConvertToJsonError;
 
@@ -203,9 +205,14 @@ impl TryFrom<&str> for Program {
 mod tests {
     use crate::context::Context;
     use crate::objects::{ResolveResult, Value};
+    use crate::Value::Opaque;
     use crate::{ExecutionError, Program};
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use std::net::SocketAddr;
+    use std::ptr::null;
+    use std::sync::Arc;
+    use serde_json::json;
 
     /// Tests the provided script and returns the result. An optional context can be provided.
     pub(crate) fn test_script(script: &str, ctx: Option<Context>) -> ResolveResult {
@@ -234,7 +241,32 @@ mod tests {
             ctx.add_variable_from_value("foo", HashMap::from([("bar", 1i64)]));
             ctx.add_variable_from_value("arr", vec![1i64, 2, 3]);
             ctx.add_variable_from_value("str", "foobar".to_string());
-            assert_eq!(test_script(script, Some(ctx)), expected);
+            ctx.add_function("ip", crate::functionsx::ip::ip);
+            ctx.add_function("isLocalhost", crate::functionsx::ip::is_localhost);
+            let res = test_script(script, Some(ctx));
+            assert_eq!(res, expected);
+        }
+        fn assert_output_json(script: &str, expected: serde_json::Value) {
+            let mut ctx = Context::default();
+            ctx.add_variable_from_value("foo", HashMap::from([("bar", 1i64)]));
+            ctx.add_variable_from_value("arr", vec![1i64, 2, 3]);
+            ctx.add_variable_from_value("str", "foobar".to_string());
+            // ctx.add_variable_from_value(
+            //     "opaque",
+            //     Value::Opaque(crate::objects::Opaque {
+            //         name: "".to_string(),
+            //         data: Arc::new("127.0.0.1:80".parse::<SocketAddr>().unwrap()),
+            //     }),
+            // );
+            ctx.add_function("ip", crate::functionsx::ip::ip);
+            ctx.add_function("isLocalhost", crate::functionsx::ip::is_localhost);
+            let res = test_script(script, Some(ctx));
+            assert_eq!(
+                res.ok()
+                    .and_then(|s| s.json().ok())
+                    .unwrap_or(serde_json::Value::Null),
+                expected
+            );
         }
 
         // Test methods
@@ -253,6 +285,11 @@ mod tests {
             "str[0]",
             Err(ExecutionError::NoSuchKey("0".to_string().into())),
         );
+
+        // Test opaque
+        assert_output("ip('127.0.0.8').isLocalhost()", Ok(true.into()));
+        assert_output("ip('1.1.1.1').isLocalhost()", Ok(false.into()));
+        assert_output_json("ip('1.1.1.1')", json!("1.1.1.1"));
     }
 
     #[test]

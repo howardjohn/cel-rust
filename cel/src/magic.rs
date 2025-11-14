@@ -12,7 +12,8 @@ impl_conversions!(
     Arc<String> => Value::String,
     Arc<Vec<u8>> => Value::Bytes,
     bool => Value::Bool,
-    Arc<Vec<Value>> => Value::List
+    Arc<Vec<Value>> => Value::List,
+    crate::objects::Opaque => Value::Opaque
 );
 
 #[cfg(feature = "chrono")]

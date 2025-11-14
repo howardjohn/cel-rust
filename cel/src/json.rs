@@ -1,7 +1,10 @@
-use crate::Value;
+use crate::objects::ValueType;
+use crate::{json, Value};
+use antlr4rust::TidExt;
 use base64::prelude::*;
 #[cfg(feature = "chrono")]
 use chrono::Duration;
+use serde_json::json;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Error)]
@@ -11,6 +14,9 @@ pub enum ConvertToJsonError<'a> {
     /// not representable in JSON.
     #[error("unable to convert value to json: {0:?}")]
     Value(&'a Value),
+
+    #[error("unable to convert value to json: {0:?}")]
+    NestedValue(&'a Value),
 
     #[cfg(feature = "chrono")]
     /// The duration is too large to convert to nanoseconds. Any duration of 2^63
@@ -61,6 +67,15 @@ impl Value {
                 v.num_nanoseconds()
                     .ok_or(ConvertToJsonError::DurationOverflow(v))?,
             )),
+            Value::Opaque(ref o) => {
+                let Some(v) = o.data.to_value(ValueType::Null) else {
+                    return Err(ConvertToJsonError::Value(self));
+                };
+                let Ok(r) = v.json() else {
+                    return Err(ConvertToJsonError::NestedValue(self));
+                };
+                r
+            }
             _ => return Err(ConvertToJsonError::Value(self)),
         })
     }

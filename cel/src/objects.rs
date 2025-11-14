@@ -1,7 +1,11 @@
 use crate::common::ast::{operators, EntryExpr, Expr};
+use crate::common::value::CelVal;
 use crate::context::Context;
 use crate::functions::FunctionContext;
 use crate::{ExecutionError, Expression};
+#[cfg(feature = "chrono")]
+use chrono::TimeZone;
+use std::any::Any;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::convert::{Infallible, TryFrom, TryInto};
@@ -11,10 +15,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 #[cfg(feature = "chrono")]
 use std::sync::LazyLock;
-
-use crate::common::value::CelVal;
-#[cfg(feature = "chrono")]
-use chrono::TimeZone;
 
 /// Timestamp values are limited to the range of values which can be serialized as a string:
 /// `["0001-01-01T00:00:00Z", "9999-12-31T23:59:59.999999999Z"]`. Since the max is a smaller
@@ -190,6 +190,43 @@ impl TryIntoValue for Value {
     }
 }
 
+pub trait AsValue: std::fmt::Debug + Any + Send  + Sync + 'static {
+    #[inline]
+    fn value_field(&self, name: &str) -> ResolveResult {
+        Err(ExecutionError::NoSuchKey(Arc::new(name.to_string())))
+    }
+
+    #[inline]
+    fn value_index(&self, index: &Value) -> ResolveResult {
+        Err(ExecutionError::UnsupportedListIndex(index.clone()))
+    }
+
+    #[inline]
+    fn to_value(&self, hint: ValueType) -> Option<Value> {
+        None
+    }
+
+    fn as_any(&self) -> Arc<dyn Any + Send + Sync>;
+    // fn as_any(&self) -> Arc<dyn Any + Send + Sync> {
+    //     self
+    // }
+
+
+}
+
+#[derive(Debug, Clone)]
+pub struct Opaque {
+    pub name: String,
+    pub data: Arc<dyn AsValue + Send + Sync + 'static>,
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for Opaque {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        todo!()
+    }
+}
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Value {
@@ -209,6 +246,7 @@ pub enum Value {
     Duration(chrono::Duration),
     #[cfg(feature = "chrono")]
     Timestamp(chrono::DateTime<chrono::FixedOffset>),
+    Opaque(Opaque),
     Null,
 }
 
@@ -240,6 +278,7 @@ pub enum ValueType {
     Bool,
     Duration,
     Timestamp,
+    Opaque,
     Null,
 }
 
@@ -257,6 +296,7 @@ impl Display for ValueType {
             ValueType::Bool => write!(f, "bool"),
             ValueType::Duration => write!(f, "duration"),
             ValueType::Timestamp => write!(f, "timestamp"),
+            ValueType::Opaque => write!(f, "opaque"),
             ValueType::Null => write!(f, "null"),
         }
     }
@@ -278,6 +318,7 @@ impl Value {
             Value::Duration(_) => ValueType::Duration,
             #[cfg(feature = "chrono")]
             Value::Timestamp(_) => ValueType::Timestamp,
+            Value::Opaque(_) => ValueType::Opaque,
             Value::Null => ValueType::Null,
         }
     }
@@ -420,6 +461,13 @@ impl From<String> for Value {
         Value::String(v.into())
     }
 }
+
+// Convert Opaque to Value
+// impl From<Opaque> for Value {
+//     fn from(v: Opaque) -> Self {
+//         Value::Opaque(v)
+//     }
+// }
 
 impl From<&str> for Value {
     fn from(v: &str) -> Self {
