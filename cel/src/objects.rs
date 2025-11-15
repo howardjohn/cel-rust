@@ -190,7 +190,7 @@ impl TryIntoValue for Value {
     }
 }
 
-pub trait AsValue: std::fmt::Debug + Any + Send  + Sync + 'static {
+pub trait AsValue: std::fmt::Debug + AsAnyArc+ Any + Send  + Sync + 'static {
     #[inline]
     fn value_field(&self, name: &str) -> ResolveResult {
         Err(ExecutionError::NoSuchKey(Arc::new(name.to_string())))
@@ -205,14 +205,15 @@ pub trait AsValue: std::fmt::Debug + Any + Send  + Sync + 'static {
     fn to_value(&self, hint: ValueType) -> Option<Value> {
         None
     }
+}
 
+trait AsAnyArc {
     fn as_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
-    // fn as_any(&self) -> Arc<dyn Any + Send + Sync>;
-    // fn as_any(&self) -> Arc<dyn Any + Send + Sync> {
-    //     self
-    // }
-
-
+}
+impl<T: Any + Send + Sync> AsAnyArc for T {
+    fn as_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>{
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
