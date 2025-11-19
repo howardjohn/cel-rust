@@ -171,7 +171,15 @@ impl<K: Into<Key>, V: Into<Value>> From<HashMap<K, V>> for Map {
     }
 }
 
-pub trait OpaqueValue: Any + Send + Sync {
+pub mod opaque {
+    use crate::objects::OpaqueValue;
+
+    pub fn eq<T: Eq + 'static>(a: &T, b: &dyn OpaqueValue) -> bool {
+        b.downcast_ref::<T>().map(|o| a.eq(&o)).unwrap_or(false)
+    }
+}
+
+pub trait OpaqueValue: Any + Send + Sync + Debug {
     fn runtime_type_name(&self) -> &str;
 
     fn eq(&self, _other: &dyn OpaqueValue) -> bool {
@@ -193,6 +201,17 @@ impl dyn OpaqueValue {
         let any: &dyn Any = self;
         any.downcast_ref()
     }
+
+    // pub fn eq2(&self, other: &dyn OpaqueValue) -> bool {
+    //     other.downcast_ref::<crate::functionsx::ip::IpAddr>().map(|o| self.0.eq(&o.0)).unwrap_or(false)
+    // }
+
+    pub fn as_debug2(&self) -> Option<&dyn Debug> {
+        Some(self)
+    }
+    // pub fn json2<T: Any>(&self) -> Option<serde_json::Value> {
+    //     serde_json::to_value(self).ok()
+    // }
 }
 
 pub trait TryIntoValue {

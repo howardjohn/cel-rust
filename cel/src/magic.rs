@@ -4,6 +4,7 @@ use crate::resolvers::{AllArguments, Argument};
 use crate::{ExecutionError, Expression, FunctionContext, ResolveResult, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::objects::OpaqueValue;
 
 impl_conversions!(
     i64 => Value::Int,
@@ -12,7 +13,8 @@ impl_conversions!(
     Arc<String> => Value::String,
     Arc<Vec<u8>> => Value::Bytes,
     bool => Value::Bool,
-    Arc<Vec<Value>> => Value::List
+    Arc<Vec<Value>> => Value::List,
+    Arc<dyn OpaqueValue> => Value::Opaque
 );
 
 #[cfg(feature = "chrono")]

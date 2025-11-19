@@ -33,6 +33,8 @@ pub use ser::SerializationError;
 
 #[cfg(feature = "json")]
 mod json;
+mod functionsx;
+
 #[cfg(feature = "json")]
 pub use json::ConvertToJsonError;
 
@@ -202,10 +204,11 @@ impl TryFrom<&str> for Program {
 #[cfg(test)]
 mod tests {
     use crate::context::Context;
-    use crate::objects::{ResolveResult, Value};
+    use crate::objects::{OpaqueValue, ResolveResult, Value};
     use crate::{ExecutionError, Program};
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use std::sync::Arc;
 
     /// Tests the provided script and returns the result. An optional context can be provided.
     pub(crate) fn test_script(script: &str, ctx: Option<Context>) -> ResolveResult {
@@ -234,7 +237,45 @@ mod tests {
             ctx.add_variable_from_value("foo", HashMap::from([("bar", 1i64)]));
             ctx.add_variable_from_value("arr", vec![1i64, 2, 3]);
             ctx.add_variable_from_value("str", "foobar".to_string());
-            assert_eq!(test_script(script, Some(ctx)), expected);
+            ctx.add_function("ip", crate::functionsx::ip::ip);
+            ctx.add_function("isLocalhost", crate::functionsx::ip::is_localhost);
+            let res = test_script(script, Some(ctx));
+            assert_eq!(res, expected);
+        }
+        fn run(script: &str) -> Arc<dyn OpaqueValue> {
+            let mut ctx = Context::default();
+            ctx.add_variable_from_value("foo", HashMap::from([("bar", 1i64)]));
+            ctx.add_variable_from_value("arr", vec![1i64, 2, 3]);
+            ctx.add_variable_from_value("str", "foobar".to_string());
+            ctx.add_function("ip", crate::functionsx::ip::ip);
+            ctx.add_function("isLocalhost", crate::functionsx::ip::is_localhost);
+            let res = test_script(script, Some(ctx));
+            let Value::Opaque(o) = res.unwrap() else {
+                panic!("not opaque")
+            };
+            o
+        }
+        fn assert_output_json(script: &str, expected: serde_json::Value) {
+            let mut ctx = Context::default();
+            ctx.add_variable_from_value("foo", HashMap::from([("bar", 1i64)]));
+            ctx.add_variable_from_value("arr", vec![1i64, 2, 3]);
+            ctx.add_variable_from_value("str", "foobar".to_string());
+            // ctx.add_variable_from_value(
+            //     "opaque",
+            //     Value::Opaque(crate::objects::Opaque {
+            //         name: "".to_string(),
+            //         data: Arc::new("127.0.0.1:80".parse::<SocketAddr>().unwrap()),
+            //     }),
+            // );
+            ctx.add_function("ip", crate::functionsx::ip::ip);
+            ctx.add_function("isLocalhost", crate::functionsx::ip::is_localhost);
+            let res = test_script(script, Some(ctx));
+            assert_eq!(
+                res.ok()
+                  .and_then(|s| s.json().ok())
+                  .unwrap_or(serde_json::Value::Null),
+                expected
+            );
         }
 
         // Test methods
@@ -253,6 +294,14 @@ mod tests {
             "str[0]",
             Err(ExecutionError::NoSuchKey("0".to_string().into())),
         );
+
+        // Test opaque
+        assert_output("ip('127.0.0.8').isLocalhost()", Ok(true.into()));
+        assert_output("ip('1.1.1.1').isLocalhost()", Ok(false.into()));
+        assert_output("ip('1.1.1.1') == ip('1.2.3.4')", Ok(false.into()));
+        assert_output("ip('1.1.1.1') == ip('1.1.1.1')", Ok(true.into()));
+        assert_output_json("ip('1.1.1.1')", serde_json::json!("1.1.1.1"));
+        panic!("{:?}", run("ip('1.2.3.4')").as_debug2());
     }
 
     #[test]
