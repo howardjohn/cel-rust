@@ -269,6 +269,7 @@ mod tests {
             // );
             ctx.add_function("ip", crate::functionsx::ip::ip);
             ctx.add_function("isLocalhost", crate::functionsx::ip::is_localhost);
+            ctx.add_function("isLocalhost2", crate::functionsx::ip::wrap(crate::functionsx::ip::IpAddr::is_localhost));
             let res = test_script(script, Some(ctx));
             assert_eq!(
                 res.ok()

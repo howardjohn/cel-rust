@@ -328,3 +328,9 @@ pub type Function = Box<dyn Fn(&mut FunctionContext) -> ResolveResult + Send + S
 pub trait IntoFunction<T> {
     fn into_function(self) -> Function;
 }
+
+impl IntoFunction<Function> for Function {
+    fn into_function(self) -> Function {
+        self
+    }
+}

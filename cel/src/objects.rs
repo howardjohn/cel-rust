@@ -12,7 +12,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 #[cfg(feature = "chrono")]
 use std::sync::LazyLock;
-
+use antlr4rust::TidExt;
 use crate::common::value::CelVal;
 #[cfg(feature = "chrono")]
 use chrono::TimeZone;
@@ -179,7 +179,7 @@ pub mod opaque {
     }
 }
 
-pub trait OpaqueValue: Any + Send + Sync + Debug {
+pub trait OpaqueValue: Any + Send + Sync + Debug + 'static {
     fn runtime_type_name(&self) -> &str;
 
     fn eq(&self, _other: &dyn OpaqueValue) -> bool {
@@ -201,7 +201,9 @@ impl dyn OpaqueValue {
         let any: &dyn Any = self;
         any.downcast_ref()
     }
-
+    pub fn downcast<T: Any>(self: Arc<Self>) -> Option<Arc<T>> {
+       self.downcast::<T>()
+    }
     // pub fn eq2(&self, other: &dyn OpaqueValue) -> bool {
     //     other.downcast_ref::<crate::functionsx::ip::IpAddr>().map(|o| self.0.eq(&o.0)).unwrap_or(false)
     // }
