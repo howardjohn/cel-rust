@@ -2,6 +2,43 @@ use crate::FunctionContext;
 use std::any::Any;
 use std::sync::Arc;
 
+pub mod request {
+    use std::fmt::Debug;
+    use serde::Serialize;
+    use crate::objects::{opaque, OpaqueValue};
+    use crate::Value;
+
+    #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
+    pub struct Request {
+        pub method: String,
+        pub path: String,
+    }
+    impl OpaqueValue for Request {
+        fn runtime_type_name(&self) -> &str {
+            "request"
+        }
+
+        fn eq(&self, other: &dyn OpaqueValue) -> bool {
+            opaque::eq::<Self>(self, other)
+        }
+
+        fn as_debug(&self) -> Option<&dyn Debug> {
+            Some(self)
+        }
+
+        fn json(&self) -> Option<serde_json::Value> {
+            serde_json::to_value(self).ok()
+        }
+
+        fn member(&self, name: &str) -> Option<Value> {
+            match name {
+                "method" => Some(self.method.clone().into()),
+                "path" => Some(self.path.clone().into()),
+                _ => None,
+            }
+        }
+    }
+}
 pub mod ip {
     use std::any::Any;
     use crate::ExecutionError;

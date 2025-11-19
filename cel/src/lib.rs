@@ -260,6 +260,10 @@ mod tests {
             ctx.add_variable_from_value("foo", HashMap::from([("bar", 1i64)]));
             ctx.add_variable_from_value("arr", vec![1i64, 2, 3]);
             ctx.add_variable_from_value("str", "foobar".to_string());
+            ctx.add_variable_from_value("req", Value::Opaque(Arc::new(crate::functionsx::request::Request {
+                method: "GET".to_string(),
+                path: "/path".to_string(),
+            })));
             // ctx.add_variable_from_value(
             //     "opaque",
             //     Value::Opaque(crate::objects::Opaque {
@@ -272,7 +276,7 @@ mod tests {
             ctx.add_function("isLocalhost2", crate::functionsx::ip::wrap(crate::functionsx::ip::IpAddr::is_localhost));
             let res = test_script(script, Some(ctx));
             assert_eq!(
-                res.ok()
+                dbg!(res).ok()
                   .and_then(|s| s.json().ok())
                   .unwrap_or(serde_json::Value::Null),
                 expected
@@ -302,7 +306,8 @@ mod tests {
         assert_output("ip('1.1.1.1') == ip('1.2.3.4')", Ok(false.into()));
         assert_output("ip('1.1.1.1') == ip('1.1.1.1')", Ok(true.into()));
         assert_output_json("ip('1.1.1.1')", serde_json::json!("1.1.1.1"));
-        panic!("{:?}", run("ip('1.2.3.4')").as_debug2());
+        assert_output_json("req.method", serde_json::json!("GET"));
+        // panic!("{:?}", run("ip('1.2.3.4')").as_debug2());
     }
 
     #[test]

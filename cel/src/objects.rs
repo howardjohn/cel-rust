@@ -194,6 +194,10 @@ pub trait OpaqueValue: Any + Send + Sync + Debug + 'static {
     fn json(&self) -> Option<serde_json::Value> {
         None
     }
+
+    fn member(&self, name: &str) -> Option<Value> {
+        None
+    }
 }
 
 impl dyn OpaqueValue {
@@ -866,6 +870,9 @@ impl Value {
         // a property on self, or a method on self.
         let child = match self {
             Value::Map(ref m) => m.map.get(&name.clone().into()).cloned(),
+            Value::Opaque(ref m) => {
+                m.member(&name)
+            }
             _ => None,
         };
 
