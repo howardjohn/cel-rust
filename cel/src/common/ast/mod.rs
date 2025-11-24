@@ -1,5 +1,6 @@
 use crate::common::value::CelVal;
 use std::collections::BTreeMap;
+use crate::Value;
 
 pub mod operators;
 
@@ -27,6 +28,9 @@ pub enum Expr {
 
     /// LiteralKind represents a primitive scalar literal.
     Literal(CelVal),
+
+    /// An inlined Value
+    Inline(Value),
 
     /// MapKind represents a map literal expression.
     Map(MapExpr),
