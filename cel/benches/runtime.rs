@@ -72,6 +72,22 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     }
 }
 
+pub fn criterion_benchmark_interpreter(c: &mut Criterion) {
+    let mut execution_group = c.benchmark_group("execute_interpreter");
+    for (name, expr) in black_box(&EXPRESSIONS) {
+        execution_group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            let program = Program::compile(expr).expect("Parsing failed");
+            let compiled = cel::interpreter::CompiledExpression::compile(program.expression());
+            let mut ctx = Context::default();
+            ctx.add_variable_from_value("foo", HashMap::from([("bar", 1)]));
+            ctx.add_variable_from_value("apple", true);
+            ctx.add_variable_from_value("a", 1);
+            ctx.set_variable_resolver(&Resolver);
+            b.iter(|| compiled.execute(&ctx).expect("Eval failed!"))
+        });
+    }
+}
+
 pub fn criterion_benchmark_parsing(c: &mut Criterion) {
     let mut parsing_group = c.benchmark_group("parse");
     for (name, expr) in black_box(&EXPRESSIONS) {
@@ -100,7 +116,7 @@ pub fn map_macro_benchmark(c: &mut Criterion) {
 criterion_group! {
     name = benches;
     config = Criterion::default();
-    targets = criterion_benchmark, criterion_benchmark_parsing, map_macro_benchmark
+    targets = criterion_benchmark, criterion_benchmark_interpreter, criterion_benchmark_parsing, map_macro_benchmark
 }
 
 #[cfg(feature = "dhat-heap")]
