@@ -137,7 +137,10 @@ fn compile_expr(expr: &Expression) -> OpClosure {
                 .iter()
                 .map(|entry| {
                     let (key, value, is_optional) = match &entry.expr {
-                        EntryExpr::StructField(_) => panic!("WAT?"),
+                        EntryExpr::StructField(_) => {
+                            // This should not happen in a Map context
+                            panic!("StructField found in Map expression")
+                        }
                         EntryExpr::MapEntry(e) => {
                             (compile_expr(&e.key), compile_expr(&e.value), e.optional)
                         }
@@ -513,7 +516,10 @@ fn compile_expr(expr: &Expression) -> OpClosure {
                 let mut inner_ctx = ctx.new_inner_scope();
                 inner_ctx
                     .add_variable(&accu_var, accu_init)
-                    .expect("Failed to add accu variable");
+                    .map_err(|_| ExecutionError::UndeclaredReference(Arc::new(format!(
+                        "Failed to add accumulator variable: {}",
+                        accu_var
+                    ))))?;
                 
                 match iter {
                     Value::List(items) => {
@@ -557,7 +563,9 @@ fn compile_expr(expr: &Expression) -> OpClosure {
         
         Expr::Unspecified => {
             Box::new(move |_ctx| {
-                panic!("Can't evaluate Unspecified Expr")
+                Err(ExecutionError::UndeclaredReference(Arc::new(
+                    "Cannot evaluate Unspecified expression".to_string(),
+                )))
             })
         }
     }
@@ -665,12 +673,11 @@ mod tests {
         let ctx = Context::default();
         let result = compiled.execute(&ctx).unwrap();
         
-        match result {
-            Value::Map(m) => {
-                assert_eq!(m.get(&crate::objects::KeyRef::String("a")), Some(&Value::Int(1)));
-                assert_eq!(m.get(&crate::objects::KeyRef::String("b")), Some(&Value::Int(2)));
-            }
-            _ => panic!("Expected map"),
+        if let Value::Map(m) = result {
+            assert_eq!(m.get(&crate::objects::KeyRef::String("a")), Some(&Value::Int(1)));
+            assert_eq!(m.get(&crate::objects::KeyRef::String("b")), Some(&Value::Int(2)));
+        } else {
+            panic!("Expected Map value, got {:?}", result);
         }
     }
     
